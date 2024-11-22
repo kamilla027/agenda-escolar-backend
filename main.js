@@ -3,7 +3,6 @@ const rotas = express();
 const Sequelize = require("sequelize");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 
 rotas.use(cors());
 rotas.use(express.json());
@@ -13,118 +12,95 @@ const conexaoComBanco = new Sequelize("agenda_escolar", "root", "", {
   dialect: "mysql",
 });
 
-// Definindo os modelos
 const Aluno = conexaoComBanco.define("alunos", {
-  nome: {
-    type: Sequelize.STRING,
-  },
-  email: {
-    type: Sequelize.STRING,
-    unique: true,
-  },
-  idade: {
-    type: Sequelize.INTEGER,
-  },
-  serie: {
-    type: Sequelize.STRING,
-  },
+  nome: { type: Sequelize.STRING },
+  email: { type: Sequelize.STRING, unique: true },
+  idade: { type: Sequelize.INTEGER },
+  serie: { type: Sequelize.STRING },
+  senha: { type: Sequelize.STRING },
 });
 
 const Evento = conexaoComBanco.define("eventos", {
-  nome: {
-    type: Sequelize.STRING,
-  },
-  data: {
-    type: Sequelize.DATE,
-  },
-  descricao: {
-    type: Sequelize.STRING,
-  },
+  nome: { type: Sequelize.STRING },
+  data: { type: Sequelize.DATE },
+  descricao: { type: Sequelize.STRING },
 });
 
 const Tarefa = conexaoComBanco.define("tarefas", {
-  descricao: {
-    type: Sequelize.STRING,
-  },
-  prazo: {
-    type: Sequelize.DATE,
-  },
-  materia: {
-    type: Sequelize.STRING,
-  },
+  descricao: { type: Sequelize.STRING },
+  prazo: { type: Sequelize.DATE },
+  materia: { type: Sequelize.STRING },
 });
 
-// Sincronizando os modelos com o banco
 Aluno.sync({ force: false });
 Evento.sync({ force: false });
 Tarefa.sync({ force: false });
 
-// Rotas
+rotas.get("/:tipo", async (req, res) => {
+  const { tipo } = req.params;
+  const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
 
-// Rota para cadastrar aluno
-rotas.post("/alunos", async (req, res) => {
-  const { nome, email, idade, serie } = req.body;
+  if (!Model) return res.status(400).json({ mensagem: "Tipo inválido!" });
+
   try {
-    const novoAluno = await Aluno.create({ nome, email, idade, serie });
-    res.json({ mensagem: "Aluno cadastrado com sucesso", aluno: novoAluno });
+    const registros = await Model.findAll();
+    res.json(registros);
   } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao cadastrar aluno", error });
+    res.status(500).json({ mensagem: `Erro ao carregar ${tipo}: ${error.message}` });
   }
 });
 
-// Rota para listar todos os alunos
-rotas.get("/alunos", async (req, res) => {
+rotas.get("/:tipo/:id", async (req, res) => {
+  const { tipo, id } = req.params;
+  const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
+
+  if (!Model) return res.status(400).json({ mensagem: "Tipo inválido!" });
+
   try {
-    const alunos = await Aluno.findAll();
-    res.json(alunos);
+    const registro = await Model.findByPk(id);
+    if (registro) res.json(registro);
+    else res.status(404).json({ mensagem: `${tipo.slice(0, -1)} não encontrado!` });
   } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao buscar alunos", error });
+    res.status(500).json({ mensagem: `Erro ao carregar ${tipo.slice(0, -1)}: ${error.message}` });
   }
 });
 
-// Rota para cadastrar evento
-rotas.post("/eventos", async (req, res) => {
-  const { nome, data, descricao } = req.body;
+rotas.post("/:tipo", async (req, res) => {
+  const { tipo } = req.params;
+  const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
+
+  if (!Model) return res.status(400).json({ mensagem: "Tipo inválido!" });
+
   try {
-    const novoEvento = await Evento.create({ nome, data, descricao });
-    res.json({ mensagem: "Evento cadastrado com sucesso", evento: novoEvento });
+    const novoRegistro = await Model.create(req.body);
+    res.status(201).json(novoRegistro);
   } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao cadastrar evento", error });
+    res.status(500).json({ mensagem: `Erro ao criar ${tipo.slice(0, -1)}: ${error.message}` });
   }
 });
 
-// Rota para listar todos os eventos
-rotas.get("/eventos", async (req, res) => {
+rotas.put("/:tipo/:id", async (req, res) => {
+  const { tipo, id } = req.params;
+  const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
+
+  if (!Model) return res.status(400).json({ mensagem: "Tipo inválido!" });
+
   try {
-    const eventos = await Evento.findAll();
-    res.json(eventos);
+    const registro = await Model.findByPk(id);
+    if (registro) {
+      await registro.update(req.body);
+      res.json({ mensagem: `${tipo.slice(0, -1)} atualizado com sucesso!` });
+    } else {
+      res.status(404).json({ mensagem: `${tipo.slice(0, -1)} não encontrado!` });
+    }
   } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao buscar eventos", error });
+    res.status(500).json({ mensagem: `Erro ao atualizar ${tipo.slice(0, -1)}: ${error.message}` });
   }
 });
 
-// Rota para cadastrar tarefa
-rotas.post("/tarefas", async (req, res) => {
-  const { descricao, prazo } = req.body;
-  try {
-    const novaTarefa = await Tarefa.create({ descricao, prazo });
-    res.json({ mensagem: "Tarefa cadastrada com sucesso", tarefa: novaTarefa });
-  } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao cadastrar tarefa", error });
-  }
-});
-
-// Rota para listar todas as tarefas
-rotas.get("/tarefas", async (req, res) => {
-  try {
-    const tarefas = await Tarefa.findAll();
-    res.json(tarefas);
-  } catch (error) {
-    res.status(500).json({ mensagem: "Erro ao buscar tarefas", error });
-  }
-});
-
-// Servidor
-rotas.listen(3035, () => {
-  console.log("Servidor rodando na porta 3035");
+conexaoComBanco.authenticate().then(() => {
+  console.log("Conexão com o banco de dados estabelecida.");
+  rotas.listen(3035, () => {
+    console.log("Servidor rodando na porta 3035.");
+  });
 });
