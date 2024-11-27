@@ -14,7 +14,7 @@ const conexaoComBanco = new Sequelize("agenda_escolar", "root", "", {
 
 // Model de Aluno
 const Aluno = conexaoComBanco.define("alunos", {
-  nome: { type: Sequelize.STRING },
+  nm_aluno: { type: Sequelize.STRING },
   email: { type: Sequelize.STRING, unique: true },
   idade: { type: Sequelize.INTEGER },
   serie: { type: Sequelize.STRING },
@@ -23,14 +23,14 @@ const Aluno = conexaoComBanco.define("alunos", {
 
 // Model de Evento
 const Evento = conexaoComBanco.define("eventos", {
-  nome: { type: Sequelize.STRING },
+  nm_evento: { type: Sequelize.STRING },
   data: { type: Sequelize.DATE },
-  descricao: { type: Sequelize.STRING },
+  descricao_evento: { type: Sequelize.STRING },
 });
 
 // Model de Tarefa
 const Tarefa = conexaoComBanco.define("tarefas", {
-  descricao: { type: Sequelize.STRING },
+  descricao_tarefa: { type: Sequelize.STRING },
   prazo: { type: Sequelize.DATE },
   materia: { type: Sequelize.STRING },
 });
@@ -79,17 +79,17 @@ rotas.post("/login-aluno", async (req, res) => {
   }
 });
 
-// Rota para salvar (exemplo de cadastro de aluno)
-rotas.post("/alunos", async (req, res) => {
-  const { nome, email, idade, serie, senha } = req.body;
 
-  if (!nome || !email || !senha) {
+rotas.post("/alunos", async (req, res) => {
+  const { nm_aluno, email, idade, serie, senha } = req.body;
+
+  if (!nm_aluno || !email || !senha) {
     return res.status(400).json({ mensagem: "Nome, email e senha são obrigatórios!" });
   }
 
   try {
     const novoAluno = await Aluno.create({
-      nome,
+      nm_aluno,  // Nome atualizado para corresponder ao modelo
       email,
       idade,
       serie,
@@ -102,7 +102,6 @@ rotas.post("/alunos", async (req, res) => {
   }
 });
 
-// Rota para listar todos os registros
 rotas.get("/:tipo", async (req, res) => {
   const { tipo } = req.params;
   const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
@@ -133,22 +132,44 @@ rotas.get("/:tipo/:id", async (req, res) => {
   }
 });
 
-// Rota para editar um aluno, evento ou tarefa com parâmetros na URL
-rotas.put("/editar/alunos/:id/:nome/:email/:idade/:serie/:senha", async (req, res) => {
-  const { id, nome, email, idade, serie, senha } = req.params;
+rotas.post("/eventos", async (req, res) => {
+  const { nm_evento, data, descricao_evento } = req.body;
+
+  if (!nm_evento || !data || !descricao_evento) {
+    return res.status(400).json({ mensagem: "Todos os campos são obrigatórios!" });
+  }
 
   try {
-    const aluno = await Aluno.findByPk(id);
-    if (aluno) {
-      await aluno.update({ nome, email, idade, serie, senha });
-      res.json({ mensagem: "Aluno atualizado com sucesso!" });
-    } else {
-      res.status(404).json({ mensagem: "Aluno não encontrado!" });
-    }
+    const novoEvento = await Evento.create({
+      nm_evento,
+      data,
+      descricao_evento,
+    });
+    res.status(201).json({ mensagem: "Evento cadastrado com sucesso!", evento: novoEvento });
   } catch (error) {
-    res.status(500).json({ mensagem: `Erro ao editar aluno: ${error.message}` });
+    console.error(error);
+    res.status(500).json({ mensagem: `Erro ao cadastrar evento: ${error.message}` });
   }
 });
+
+rotas.post("/tarefas", async (req, res) => {
+  console.log("Dados recebidos:", req.body); 
+
+  const { descricao_tarefa, prazo, materia } = req.body;
+
+  if (!descricao_tarefa || !prazo || !materia) {
+    return res.status(400).json({ mensagem: "Todos os campos são obrigatórios!" });
+  }
+
+  try {
+    const novaTarefa = await Tarefa.create({ descricao_tarefa, prazo, materia });
+    res.status(201).json({ mensagem: "Tarefa cadastrada com sucesso!", tarefa: novaTarefa });
+  } catch (error) {
+    console.error("Erro ao cadastrar tarefa:", error); 
+    res.status(500).json({ mensagem: `Erro ao cadastrar tarefa: ${error.message}` });
+  }
+});
+
 
 // Rota para deletar um registro
 rotas.get("/deletar/:tipo/:id", async (req, res) => {
@@ -174,7 +195,29 @@ rotas.get("/deletar/:tipo/:id", async (req, res) => {
   }
 });
 
-// Inicializando o servidor
+// Rota para atualizar um registro
+rotas.put("/:tipo/:id", async (req, res) => {
+  const { tipo, id } = req.params;
+  const { ...dadosAtualizados } = req.body;
+
+  const Model = tipo === "alunos" ? Aluno : tipo === "eventos" ? Evento : tipo === "tarefas" ? Tarefa : null;
+
+  if (!Model) return res.status(400).json({ mensagem: "Tipo inválido!" });
+
+  try {
+    const registro = await Model.findByPk(id);
+    if (!registro) return res.status(404).json({ mensagem: `${tipo.slice(0, -1)} não encontrado!` });
+
+    // Atualizando o registro
+    await registro.update(dadosAtualizados);
+
+    res.json({ mensagem: `${tipo.slice(0, -1)} atualizado com sucesso!`, registro });
+  } catch (error) {
+    res.status(500).json({ mensagem: `Erro ao atualizar ${tipo.slice(0, -1)}: ${error.message}` });
+  }
+});
+
+
 rotas.listen(3035, () => {
   console.log("Servidor rodando na porta 3035...");
 });
